@@ -1,0 +1,21 @@
+{
+  "name": "cathcy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test": "node --test *.test.js",
+    "build:all": "npm run build && npm --prefix backend run build",
+    "api": "npm --prefix backend start",
+    "build:preview": "node scripts/build-preview.mjs"
+  },
+  "dependencies": {
+    "jssip": "3.10.1",
+    "socket.io-client": "^4.8.4"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}

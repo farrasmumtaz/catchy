@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.zip
+.env
+.env.*
+!.env.example
+coverage/
+__pycache__/
+
+.vercel/
+
+.taste-skill/

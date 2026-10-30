@@ -1,0 +1,10 @@
+node_modules/
+backend/
+infra/
+.git/
+.taste-skill/
+dist/
+.env
+.env.*
+*.test.js
+README.md
