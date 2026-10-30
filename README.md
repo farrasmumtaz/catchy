@@ -153,3 +153,24 @@ Pemeriksaan produksi (membuat dua akun QA lalu membersihkan data miliknya):
 ```powershell
 node --env-file=.env backend/scripts/smoke-production.mjs
 ```
+
+## Mobile, keyboard, dan koneksi otomatis
+
+Chat memakai Socket.IO pada origin aplikasi, dengan path `/socket.io/`. Login, daftar,
+dan pemulihan sesi langsung membuka koneksi; pengguna tidak perlu mengisi URL chat.
+Pada domain produksi saat ini URL transport-nya `wss://catchy-smoky.vercel.app/socket.io/`.
+Ini terpisah dari endpoint SIP Kamailio. Domain dan WSS SIP publik belum disediakan.
+
+Jika server SIP publik sudah tersedia, pasang build variables `VITE_SIP_WS_URL` dan
+`VITE_SIP_DOMAIN` di Vercel lalu redeploy. Keduanya hanya alamat publik, bukan password.
+Pengaturan panggilan akan mengisi alamat server dan username aplikasi sebagai saran;
+pengguna tetap memasukkan kredensial SIP miliknya. Daftar aplikasi belum membuat akun
+Kamailio, dan password aplikasi tidak disalin atau disimpan sebagai password SIP.
+Vite tidak memuat root `.env`; untuk development, berikan kedua build variables lewat
+environment proses sebelum menjalankan Vite.
+
+Pada HP, pilih percakapan untuk membuka chat, dan gunakan tombol kembali untuk daftar.
+Kolom pesan memakai textarea dengan keyboard teks bawaan: Enter untuk kirim, Shift+Enter
+untuk baris baru, tanpa mengganggu komposisi IME. Tinggi aplikasi mengikuti visual viewport
+dan safe area. Tombol mata tersedia pada kedua form password, lalu kembali tersembunyi
+saat form dikirim atau dialog ditutup. Kode aplikasi tidak menyimpan password di storage browser.

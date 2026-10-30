@@ -2,13 +2,19 @@ import { api, openRealtime, publicPreview } from './api.js';
 import { sipAddress, parseIceServers, mergeMessages } from './model.js';
 import { releaseMedia, cameraConstraints, captureCamera, replaceVideoTrack } from './media.js';
 
-export function startClient(JsSIP) {
+export function startClient(JsSIP, { sipDefaults = {} } = {}) {
   const $ = id => document.getElementById(id);
   let user = null, ua, session, sipAccount = '', selected = '', iceServers = [];
   let generation = 0, realtime, noticeTimer, syncTimer, sending = false, retry = null;
   let previewStream = null, previewRequest = 0, preferredCamera = '';
   const peers = new Map(), messages = new Map(), pages = new Map(), requests = new Map();
   const welcome = $('messages').firstElementChild.cloneNode(true);
+  $('app').dataset.view = 'list';
+  if (sipDefaults.ws && sipDefaults.domain) {
+    $('ws').value = sipDefaults.ws; $('domain').value = sipDefaults.domain;
+    $('sipHelp').textContent = 'Server panggilan sudah diisi otomatis. Masukkan kredensial akun SIP milikmu; akun aplikasi dan akun SIP tetap terpisah.';
+  }
+  $('backToContacts').onclick = () => { $('app').dataset.view = 'list'; $('message').blur(); };
   const notify = text => {
     clearTimeout(noticeTimer);
     $('notice').textContent = text;
@@ -192,13 +198,16 @@ export function startClient(JsSIP) {
     if (selected) await loadMessages(selected);
   }
   async function selectPeer(peer) {
-    selected = peer; retry = null; $('message').value = ''; render();
+    if (selected !== peer) { retry = null; $('message').value = ''; }
+    selected = peer; $('app').dataset.view = 'chat'; render();
     await loadMessages(peer);
   }
   function setUser(next) {
     generation++; realtime?.disconnect(); clearTimeout(syncTimer);
     ua?.stop(); ua = null; sipAccount = ''; $('status').textContent = 'Panggilan SIP belum terhubung';
-    user = next; selected = ''; retry = null; peers.clear(); messages.clear(); pages.clear(); requests.clear();
+    user = next; $('app').dataset.view = 'list';
+    if (user && sipDefaults.ws && sipDefaults.domain) $('username').value = user.username;
+    selected = ''; retry = null; peers.clear(); messages.clear(); pages.clear(); requests.clear();
     $('message').value = ''; $('appStatus').textContent = user ? `Masuk sebagai ${user.username}` : 'Belum masuk ke aplikasi';
     render();
     if (!user) return;

@@ -7,12 +7,12 @@ import { sipAddress, parseIceServers, mergeMessages } from './model.js';
 import { releaseMedia, cameraConstraints, captureCamera, replaceVideoTrack } from './media.js';
 
 // Exercise actual browser handlers; SIP transport and HTTP are replaced here only.
-async function client(signedIn = true, publicPreview = false) {
+async function client(signedIn = true, publicPreview = false, sipDefaults = {}, canAuthenticate = false) {
   const markup = readFileSync(new URL('./src.js', import.meta.url), 'utf8');
   const source = readFileSync(new URL('./app-client.js', import.meta.url), 'utf8');
   class Element {
     children = []; selectors = {}; value = ''; textContent = ''; className = '';
-    disabled = false; modalOpened = false; scrollHeight = 0; scrollTop = 0;
+    dataset = {}; disabled = false; modalOpened = false; scrollHeight = 0; scrollTop = 0;
     querySelector(selector) {
       if (selector === '.welcome') return this.children.find(child => child.className === 'welcome');
       return this.selectors[selector] ??= new Element();
@@ -25,9 +25,11 @@ async function client(signedIn = true, publicPreview = false) {
     showModal() { this.modalOpened = true; }
     close() { this.modalOpened = false; }
     focus() { this.focused = true; }
+    blur() { this.focused = false; }
     play() { return Promise.resolve(); }
   }
   const elements = Object.fromEntries([...markup.matchAll(/id="([^"]+)"/g)].map(([, id]) => [id, new Element()]));
+  elements.app = new Element();
   const welcome = new Element(); welcome.className = 'welcome'; elements.messages.append(welcome);
   class UA extends EventEmitter {
     registered = false;
@@ -39,6 +41,7 @@ async function client(signedIn = true, publicPreview = false) {
   const agents = [], requests = [];
   const api = async (path, options) => {
     requests.push({ path, options });
+    if (canAuthenticate && ['/auth/login', '/auth/register'].includes(path)) { signedIn = true; return { id: 'test-user', username: '1001' }; }
     if (!signedIn) { const error = new Error('Sesi berakhir'); error.status = 401; throw error; }
     if (path === '/auth/me') return { id: 'test-user', username: '1001' };
     if (path === '/conversations') return [];
@@ -48,11 +51,11 @@ async function client(signedIn = true, publicPreview = false) {
   };
   const sockets = [];
   class Realtime extends EventEmitter { connectCalls = 0; connect() { this.connectCalls++; this.emit('session:ready'); } disconnect() {} }
-  vm.runInNewContext(source.replace(/^import .+;\r?\n/gm, '').replace('export function startClient', 'function startClient') + '\nstartClient(JsSIP);', {
+  vm.runInNewContext(source.replace(/^import .+;\r?\n/gm, '').replace('export function startClient', 'function startClient') + '\nstartClient(JsSIP, { sipDefaults });', {
     document: { getElementById: id => elements[id], createElement: () => new Element(), querySelector: () => new Element() },
     window: { addEventListener() {} }, JsSIP: { UA, WebSocketInterface: class {} },
     sipAddress, parseIceServers, mergeMessages, releaseMedia, cameraConstraints, captureCamera, replaceVideoTrack, publicPreview,
-    api, openRealtime: () => { const socket = new Realtime(); sockets.push(socket); return socket; }, URL,
+    sipDefaults, api, openRealtime: () => { const socket = new Realtime(); sockets.push(socket); return socket; }, URL,
     setTimeout() {}, clearTimeout() {}, crypto: { randomUUID: () => 'test-client-id' },
   });
   await new Promise(setImmediate);
@@ -86,6 +89,36 @@ test('application chat works independently of SIP and reconnects preserve the dr
   ua.registered = true; ua.emit('registered');
   assert.equal(e.name.textContent, '1002');
   assert.equal(e.message.value, 'Draft belum dikirim');
+});
+
+test('login and registration connect chat automatically without starting SIP', async () => {
+  for (const register of [false, true]) {
+    const { elements: e, sockets, requests, submit } = await client(false, false, {}, true);
+    if (register) e.authMode.onclick();
+    e.appUsername.value = '1001'; e.appPassword.value = 'valid-password';
+    await e.authForm.onsubmit(submit);
+    assert.ok(requests.some(r => r.path === `/auth/${register ? 'register' : 'login'}`));
+    assert.equal(sockets.length, 1);
+    assert.equal(sockets[0].connectCalls, 1);
+    assert.equal(e.appPassword.value, '');
+    assert.match(e.appStatus.textContent, /Chat terhubung/);
+  }
+});
+
+test('phone navigation preserves the draft and configured SIP defaults fill without sharing app credentials', async () => {
+  const { elements: e, sockets, submit } = await client(true, false, { ws: 'wss://sip.example.test/ws', domain: 'sip.example.test' });
+  assert.equal(e.app.dataset.view, 'list');
+  assert.equal(sockets[0].connectCalls, 1);
+  assert.equal(e.ws.value, 'wss://sip.example.test/ws');
+  assert.equal(e.domain.value, 'sip.example.test');
+  assert.equal(e.username.value, '1001');
+  assert.equal(e.password.value, '', 'Application credentials must never be copied into SIP');
+  e.target.value = '1002'; await e.contact.onsubmit(submit);
+  assert.equal(e.app.dataset.view, 'chat');
+  assert.equal(e.message.disabled, false);
+  e.message.value = 'Draft di HP'; e.backToContacts.onclick();
+  assert.equal(e.app.dataset.view, 'list');
+  assert.equal(e.message.value, 'Draft di HP');
 });
 
 test('SIP callbacks from an old account cannot replace current SIP status', async () => {
