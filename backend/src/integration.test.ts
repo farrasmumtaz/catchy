@@ -17,7 +17,8 @@ test('real PostgreSQL: auth, authorization, WebSocket, pagination, offline deliv
   assert.ok(process.env.DATABASE_URL, 'Set DATABASE_URL to the development database before running integration tests');
   const db = new Pool({ connectionString: process.env.DATABASE_URL });
   const origin = process.env.APP_ORIGIN!;
-  let app = await createApp();
+  const rateLimitPrefix = `qa_${randomUUID()}:`;
+  let app = await createApp({ rateLimitPrefix });
   await app.listen(0, '127.0.0.1');
   let base = await app.getUrl();
   const names = ['a', 'b', 'c'].map(letter => `qa_${randomUUID().replaceAll('-', '').slice(0, 14)}_${letter}`);
@@ -50,6 +51,7 @@ test('real PostgreSQL: auth, authorization, WebSocket, pagination, offline deliv
     // Delete only records created by this test's random identities.
     await db.query('DELETE FROM chat_messages WHERE sender_id=ANY($1::uuid[]) OR recipient_id=ANY($1::uuid[])', [ids]);
     await db.query('DELETE FROM app_users WHERE id=ANY($1::uuid[])', [ids]);
+    await db.query('DELETE FROM api_rate_limits WHERE key LIKE $1', [rateLimitPrefix + '%']);
     await db.end();
   });
   const [alice, bob, outsider] = await Promise.all(names.map(register));
@@ -94,6 +96,18 @@ test('real PostgreSQL: auth, authorization, WebSocket, pagination, offline deliv
     assert.equal(forbidden.messages.length, 0, 'An outsider cannot retrieve Alice/Bob messages');
   });
 
+  await t.test('a second backend instance reaches sockets on the first through PostgreSQL', async () => {
+    const second = await createApp({ rateLimitPrefix });
+    await second.listen(0, '127.0.0.1');
+    const original = base;
+    try {
+      const notification = event(receiver, 'messages:changed');
+      base = await second.getUrl();
+      assert.equal((await request('/messages', alice, 'POST', { ...payload, clientId: randomUUID(), body: 'Across backend instances' })).status, 201);
+      assert.equal(await notification, 'OK');
+    } finally { base = original; await second.close(); }
+  });
+
   await t.test('loads paginated history without missing or duplicating messages', async () => {
     await db.query(`INSERT INTO chat_messages(sender_id,recipient_id,client_id,body)
       SELECT $1,$2,gen_random_uuid(),'history ' || i FROM generate_series(1,52) AS i`, [identities.get(names[0]), identities.get(names[1])]);
@@ -101,7 +115,7 @@ test('real PostgreSQL: auth, authorization, WebSocket, pagination, offline deliv
     assert.equal(recent.messages.length, 50); assert.equal(recent.hasMore, true);
     const older = await (await request(`/messages/${names[0]}?before=${recent.nextBefore}`, bob)).json() as { messages: { id: number }[]; hasMore: boolean };
     const all = [...older.messages, ...recent.messages].map(message => message.id);
-    assert.equal(all.length, 53); assert.equal(new Set(all).size, 53);
+    assert.equal(all.length, 54); assert.equal(new Set(all).size, 54);
     assert.equal(all[0], firstId); assert.equal(older.hasMore, false);
     assert.equal((await request(`/messages/${names[0]}?before=-1`, bob)).status, 400);
   });
@@ -111,7 +125,7 @@ test('real PostgreSQL: auth, authorization, WebSocket, pagination, offline deliv
     const offline = { ...payload, clientId: randomUUID(), body: 'Stored while recipient is offline' };
     assert.equal((await request('/messages', alice, 'POST', offline)).status, 201);
     await app.close();
-    app = await createApp(); await app.listen(0, '127.0.0.1'); base = await app.getUrl();
+    app = await createApp({ rateLimitPrefix }); await app.listen(0, '127.0.0.1'); base = await app.getUrl();
     assert.equal((await request('/auth/me', bob)).status, 200);
     const page = await (await request(`/messages/${names[0]}`, bob)).json() as { messages: { body: string }[] };
     assert.equal(page.messages.at(-1)?.body, offline.body);

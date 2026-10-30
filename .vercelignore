@@ -1,5 +1,4 @@
 node_modules/
-backend/
 infra/
 .git/
 .taste-skill/
@@ -8,3 +7,8 @@ dist/
 .env.*
 *.test.js
 README.md
+
+backend/node_modules/
+backend/dist/
+backend/.env*
+backend/src/*.test.ts

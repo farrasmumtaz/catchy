@@ -1,5 +1,6 @@
 import { BadRequestException, Body, ConflictException, Controller, Get, HttpCode, Injectable, NotFoundException, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
-import { WebSocketGateway, WebSocketServer, OnGatewayConnection } from '@nestjs/websockets';
+import { WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayInit } from '@nestjs/websockets';
+import { createAdapter } from '@socket.io/postgres-adapter';
 import { IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Server, Socket } from 'socket.io';
@@ -18,10 +19,13 @@ class HistoryPage {
 export interface ChatMessage { id: number; sender: string; recipient: string; body: string; clientId: string; createdAt: Date }
 
 @WebSocketGateway({ maxHttpBufferSize: 8192 })
-export class ChatGateway implements OnGatewayConnection {
+export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   @WebSocketServer() server!: Server;
-  constructor(private readonly auth: AuthService) {
+  constructor(private readonly auth: AuthService, private readonly db: Database) {
     auth.revoked.on('session', (hash: string) => this.logout(hash));
+  }
+  afterInit(server: Server) {
+    server.adapter(createAdapter(this.db, { channelPrefix: 'cathcy', errorHandler: () => console.error('Sinkronisasi chat PostgreSQL terputus.') }));
   }
   async handleConnection(client: Socket) {
     try {

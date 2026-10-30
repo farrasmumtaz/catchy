@@ -5,11 +5,30 @@
       "root": ".",
       "framework": "vite",
       "installCommand": "npm ci",
-      "buildCommand": "npm run build:preview",
+      "buildCommand": "npm run build",
       "outputDirectory": "dist"
+    },
+    "backend": {
+      "root": "backend",
+      "framework": "nestjs",
+      "entrypoint": "src/main.ts",
+      "installCommand": "npm ci",
+      "buildCommand": "npm run build"
     }
   },
   "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
+      "source": "/socket.io/(.*)",
+      "destination": {
+        "service": "backend"
+      }
+    },
     {
       "source": "/(.*)",
       "destination": {

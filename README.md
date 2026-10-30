@@ -102,18 +102,39 @@ pilihan kamera pada panel panggilan memakai replaceTrack dan mempertahankan stat
 Gagal mengganti kamera tidak menghentikan kamera sebelumnya. Panggilan suara belum dapat
 ditingkatkan menjadi video saat berlangsung.
 
-## Preview publik Vercel
+## Deployment Vercel
 
-`vercel.json` menjalankan `npm run build:preview`. Mode ini hanya mengaktifkan tampilan dan
-preview kamera lokal melalui HTTPS. Login/chat dan pengaturan panggilan dinonaktifkan secara
-jelas karena PostgreSQL publik, Kamailio WSS, dan TURN belum disediakan. `npm run dev` serta
-`npm run build` tetap memakai mode aplikasi lokal lengkap.
+`vercel.json` menjalankan service frontend Vite dan backend NestJS dalam satu domain.
+`/api/` dan `/socket.io/` diarahkan ke backend; path lainnya ke frontend. Cookie tetap same-origin.
+Socket.IO produksi memakai WebSocket langsung, dengan PostgreSQL adapter untuk menjangkau
+pengguna pada instance berbeda. Rate limiter juga disimpan di PostgreSQL. Mode kamera saja
+masih tersedia lewat `npm run build:preview`, tetapi tidak lagi menjadi build produksi.
 
-Tidak ada database/password lokal yang diunggah: `.vercelignore` mengecualikan backend,
-infra, file env, dependency lokal, dan test dari paket frontend. Untuk mengaktifkan aplikasi
-publik lengkap, siapkan database publik dan infrastruktur SIP/TURN dahulu, lalu konfigurasi
-backend publik, origin/cookie, routing Socket.IO, dan sinkronisasi antar-instance sebelum
-mengganti build preview dengan build aplikasi lengkap.
+`.env` utama berisi konfigurasi produksi dan tidak di-commit/diunggah. `backend/.env` tetap
+memakai database pengembangan WSL. `vite.config.js` tidak membaca file env lokal backend.
+Untuk menyimpan environment produksi ke proyek Vercel yang sudah ditautkan:
+
+```powershell
+node backend/scripts/sync-vercel-env.mjs
+```
+
+Variabel produksi: DATABASE_URL, APP_ORIGIN, NODE_ENV=production, HOST, PORT,
+DATABASE_SCHEMA=cathcy, DATABASE_SSL=true. DATABASE_URL dikirim lewat stdin sebagai Secret.
+Supabase memakai session pooler port 5432, karena adapter Socket.IO memerlukan LISTEN/NOTIFY.
+TLS memakai CA publik Supabase dengan verifikasi sertifikat aktif. Schema `cathcy` tidak
+diekspos ke Data API; RLS aktif tanpa policy publik. Backend mengakses tabel menggunakan
+role database server, bukan publishable/service-role key browser.
+
+Migrasi produksi dijalankan dari root, memakai `.env` utama:
+
+```powershell
+npm --prefix backend run build
+node --env-file=.env backend/dist/migrate.js
+```
+
+Database publik adalah database terpisah: akun dan pesan WSL tidak disalin otomatis.
+Daftarkan akun pada server publik. Panggilan publik tetap memerlukan Kamailio WSS dan TURN;
+koneksi SIP localhost hanya berlaku untuk pengujian lokal.
 
 Dokumentasi Vercel terbaru mendukung WebSocket pada Functions (Fluid Compute), tetapi
 koneksi memiliki batas durasi dan state antar-instance perlu disinkronkan. Kamailio dan

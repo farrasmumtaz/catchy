@@ -26,5 +26,6 @@ export async function api(path, options = {}) {
 }
 
 export function openRealtime() {
-  return io({ autoConnect: false, withCredentials: true, transports: ['websocket', 'polling'], tryAllTransports: true });
+  return io({ autoConnect: false, withCredentials: true,
+    transports: import.meta.env?.PROD ? ['websocket'] : ['websocket', 'polling'], tryAllTransports: true });
 }

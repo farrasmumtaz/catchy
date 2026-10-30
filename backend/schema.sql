@@ -23,4 +23,21 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 );
 CREATE INDEX IF NOT EXISTS chat_messages_pair ON chat_messages(sender_id, recipient_id, id DESC);
 CREATE INDEX IF NOT EXISTS chat_messages_recipient ON chat_messages(recipient_id, id DESC);
+CREATE TABLE IF NOT EXISTS socket_io_attachments (
+  id bigserial UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  payload bytea
+);
+CREATE INDEX IF NOT EXISTS socket_io_attachments_expiry ON socket_io_attachments(created_at);
+CREATE TABLE IF NOT EXISTS api_rate_limits (
+  key text PRIMARY KEY,
+  total_hits integer NOT NULL,
+  reset_at timestamptz NOT NULL
+);
+CREATE INDEX IF NOT EXISTS api_rate_limits_expiry ON api_rate_limits(reset_at);
+ALTER TABLE app_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE app_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE socket_io_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_rate_limits ENABLE ROW LEVEL SECURITY;
 COMMIT;

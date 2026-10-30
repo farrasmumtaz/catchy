@@ -15,6 +15,7 @@
     "@nestjs/platform-express": "^12.3.2",
     "@nestjs/platform-socket.io": "^12.3.2",
     "@nestjs/websockets": "^12.3.2",
+    "@socket.io/postgres-adapter": "^0.5.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
@@ -30,6 +31,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "socket.io-client": "^4.8.4",
     "typescript": "^7.0.2"
   },
   "type": "module"
