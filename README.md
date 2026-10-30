@@ -118,9 +118,10 @@ Untuk menyimpan environment produksi ke proyek Vercel yang sudah ditautkan:
 node backend/scripts/sync-vercel-env.mjs
 ```
 
-Variabel produksi: DATABASE_URL, APP_ORIGIN, NODE_ENV=production, HOST, PORT,
-DATABASE_SCHEMA=cathcy, DATABASE_SSL=true. DATABASE_URL dikirim lewat stdin sebagai Secret.
-Supabase memakai session pooler port 5432, karena adapter Socket.IO memerlukan LISTEN/NOTIFY.
+Variabel produksi: DATABASE_URL, DATABASE_REALTIME_URL, APP_ORIGIN, NODE_ENV=production,
+HOST, PORT, DATABASE_SCHEMA=cathcy, DATABASE_SSL=true. Kedua URL dikirim lewat stdin sebagai Secret.
+DATABASE_URL memakai transaction pooler Supabase port 6543 untuk query biasa.
+DATABASE_REALTIME_URL memakai session pooler port 5432 untuk adapter Socket.IO LISTEN/NOTIFY.
 TLS memakai CA publik Supabase dengan verifikasi sertifikat aktif. Schema `cathcy` tidak
 diekspos ke Data API; RLS aktif tanpa policy publik. Backend mengakses tabel menggunakan
 role database server, bukan publishable/service-role key browser.
@@ -140,3 +141,15 @@ Dokumentasi Vercel terbaru mendukung WebSocket pada Functions (Fluid Compute), t
 koneksi memiliki batas durasi dan state antar-instance perlu disinkronkan. Kamailio dan
 TURN tetap membutuhkan host terpisah. Referensi:
 https://vercel.com/kb/guide/do-vercel-serverless-functions-support-websocket-connections
+
+Backend Vercel memakai `outputDirectory: "."` untuk menjaga cakupan package ESM,
+menyertakan modul gateway dinamis melalui `includeFiles`, dan mengekspor HTTP server
+agar upgrade WebSocket diteruskan. Fungsi ditempatkan di Singapura dengan maksimum dua
+koneksi per pool per instance (satu koneksi session digunakan untuk LISTEN). Kapasitas session pooler tetap
+perlu ditingkatkan sebelum menambah banyak instance/pengguna bersamaan.
+
+Pemeriksaan produksi (membuat dua akun QA lalu membersihkan data miliknya):
+
+```powershell
+node --env-file=.env backend/scripts/smoke-production.mjs
+```

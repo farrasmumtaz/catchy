@@ -6,7 +6,7 @@ import { Type } from 'class-transformer';
 import type { Server, Socket } from 'socket.io';
 import type { Response } from 'express';
 import { Database } from './db.js';
-import { AuthGuard, AuthRequest, AuthService, COOKIE, cookieOptions } from './auth.js';
+import { AuthGuard, type AuthRequest, AuthService, COOKIE, cookieOptions } from './auth.js';
 
 export class NewMessage {
   @IsString() @Matches(/^[a-z0-9][a-z0-9_.-]{2,31}$/) recipient!: string;
@@ -25,7 +25,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     auth.revoked.on('session', (hash: string) => this.logout(hash));
   }
   afterInit(server: Server) {
-    server.adapter(createAdapter(this.db, { channelPrefix: 'cathcy', errorHandler: () => console.error('Sinkronisasi chat PostgreSQL terputus.') }));
+    server.adapter(createAdapter(this.db.realtimePool, { channelPrefix: 'cathcy', errorHandler: () => console.error('Sinkronisasi chat PostgreSQL terputus.') }));
   }
   async handleConnection(client: Socket) {
     try {

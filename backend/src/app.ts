@@ -1,4 +1,7 @@
 import 'reflect-metadata';
+// Keep Nest's dynamically loaded gateway module in serverless deployment traces.
+import '@nestjs/websockets/socket-module.js';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Controller, Get, Module, ServiceUnavailableException, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
@@ -24,6 +27,7 @@ export class AppModule {}
 export async function createApp(options: { rateLimitPrefix?: string } = {}) {
   if (!process.env.APP_ORIGIN || new URL(process.env.APP_ORIGIN).origin !== process.env.APP_ORIGIN) throw new Error('APP_ORIGIN wajib berupa origin tanpa trailing slash.');
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
+  app.useWebSocketAdapter(new IoAdapter(app));
   if (process.env.VERCEL) app.getHttpAdapter().getInstance().set('trust proxy', 1);
   const db = app.get(Database), prefix = options.rateLimitPrefix ?? 'cathcy:';
   app.use(helmet());
